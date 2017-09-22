@@ -4,7 +4,7 @@
 
 enum TokenType
 {
-	IntLiteral,
+	IntLiteral, //0
 	RealLiteral,
 	StringLiteral,
 	Identifier,
@@ -14,7 +14,7 @@ enum TokenType
 	Negative,
 	Negation,
 	PostIncrement,//这个区间放后置单目运算符
-	PostDecrement,
+	PostDecrement, //10
 	LeftBracket,
 	RightBracket,
 	LeftSqBracket,
@@ -24,7 +24,7 @@ enum TokenType
 	Multi,
 	Divi,
 	Mod,
-	Assign,
+	Assign,//20
 	Member,
 	Comma,
 	Greater,
@@ -34,7 +34,7 @@ enum TokenType
 	GreaterEqual,
 	LessEqual,
 	And,
-	Or,
+	Or,//30
 	AddAssign,
 	SubAssign,
 	MultiAssign,

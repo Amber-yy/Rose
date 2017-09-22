@@ -2,11 +2,6 @@
 #include "Lexer.h"
 #include "Rose.h"
 
-static inline bool isPrimary(char c)
-{
-	return isId(c) || c == '\'' || c == '\"';
-}
-
 static inline bool isSpace(char c)
 {
 	return 0 <= c&&c <= ' ';
@@ -35,6 +30,11 @@ static inline bool isReal(char c)
 static inline bool isId(char c)
 {
 	return isIdStart(c) || isNumber(c);
+}
+
+static inline bool isPrimary(char c)
+{
+	return isId(c) || c == '\'' || c == '\"';
 }
 
 static inline int isQuotes(char c)
@@ -75,16 +75,19 @@ Lexer::~Lexer()
 	delete data;
 }
 
+#include <iostream>
+
 void Lexer::parse(std::string & code)
 {
-	code = std::move(code);
+	data->code = std::move(code);
 	data->currentIndex = 0;
 	data->codeIndex = 0;
 
 	auto getChar = [this]()->char
 	{
-		if (data->codeIndex == data->code.size())
+		if (data->codeIndex >= data->code.size())
 		{
+			++data->codeIndex;
 			return -1;
 		}
 		++data->codeIndex;
@@ -113,9 +116,53 @@ void Lexer::parse(std::string & code)
 		return false;
 	};
 
-	auto clearLine = [this](int line)
+	auto findValue = [this]()->bool
 	{
+		for (int start = data->allToken.size() - 1; start >= 0; --start)
+		{
+			TokenType type = data->allToken[start].getType();
+			
+			if (IntLiteral <= type&&type <= Identifier)
+			{
+				return true;
+			}
+		}
+		return false;
+	};
 
+	auto clearLine = [this,&getChar](int line)
+	{
+		for (int start = data->allToken.size() - 1; start >= 0; --start)
+		{
+			if (data->allToken[start].getLine() == line)
+			{
+				data->allToken.pop_back();
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		char temp;
+
+		while(true)
+		{
+			temp = getChar();
+			if (temp == '\n')
+			{
+				++line;
+				break;
+			}
+			else if (temp == ';')
+			{
+				break;
+			}
+			else if (temp == -1)
+			{
+				break;
+			}
+		}
 	};
 
 	std::string token;
@@ -149,6 +196,8 @@ void Lexer::parse(std::string & code)
 					if (real)
 					{
 						//添加一条语法错误，数字字面量中有太多的.
+						data->rose->addError(line, "数字字面量中含有太多'.'");
+						clearLine(line);
 						ok = false;
 						break;
 					}
@@ -164,6 +213,8 @@ void Lexer::parse(std::string & code)
 			if (!isDiv(temp))
 			{
 				/*添加一条语法错误，整数字面量后紧挨的不是分隔符*/
+				data->rose->addError(line, "数字字面量之后有不合法的文本运算符");
+				clearLine(line);
 				continue;
 			}
 
@@ -183,7 +234,7 @@ void Lexer::parse(std::string & code)
 			else
 			{
 				t.setType(IntLiteral);
-				t.setReal(atoi(token.c_str()));
+				t.setInteger(atoi(token.c_str()));
 			}
 			
 			data->allToken.push_back(std::move(t));
@@ -276,6 +327,8 @@ void Lexer::parse(std::string & code)
 			if (!isDiv(temp))
 			{
 				/*一个语法错误*/
+				data->rose->addError(line, "字符串字面量之后有不合法的文本运算符");
+				clearLine(line);
 				continue;
 			}
 
@@ -321,7 +374,7 @@ void Lexer::parse(std::string & code)
 
 			Token t;
 			t.setLineNumber(line);
-			if (findBinary())
+			if (findBinary() || !findValue())
 			{
 				t.setType(Positive);
 			}
@@ -366,7 +419,7 @@ void Lexer::parse(std::string & code)
 
 			Token t;
 			t.setLineNumber(line);
-			if (findBinary())
+			if (findBinary() || !findValue())
 			{
 				t.setType(Negative);
 			}
@@ -456,6 +509,8 @@ void Lexer::parse(std::string & code)
 			if (!isIdStart(next))
 			{
 				/*添加一条语法错误，非法的标识符*/
+				data->rose->addError(line, ".之后有非法的标识符");
+				clearLine(line);
 				continue;
 			}
 
@@ -540,6 +595,8 @@ void Lexer::parse(std::string & code)
 
 			unGetChar();
 			/*添加一条语法错误，非法的符号*/
+			data->rose->addError(line, "不合法的&运算符");
+			clearLine(line);
 		}
 		else if (temp == '|')
 		{
@@ -555,6 +612,8 @@ void Lexer::parse(std::string & code)
 
 			unGetChar();
 			/*添加一条语法错误，非法的符号*/
+			data->rose->addError(line, "不合法的|运算符");
+			clearLine(line);
 		}
 		else if (temp == '(')
 		{
@@ -616,6 +675,8 @@ void Lexer::parse(std::string & code)
 		else
 		{
 			/*添加一条语法错误，不能识别的标识符*/
+			data->rose->addError(line, "不合法的标识符");
+			clearLine(line);
 		}
 
 	}
@@ -635,5 +696,5 @@ const Token & Lexer::peek(int index)
 
 bool Lexer::hasMore()
 {
-	return data->currentIndex==data->allToken.size();
+	return data->currentIndex<data->allToken.size();
 }

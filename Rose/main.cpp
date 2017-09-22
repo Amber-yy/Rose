@@ -1,10 +1,10 @@
-
-
+#include "Rose.h"
 
 int main()
 {
-	int a, b, c;
-	a++  + b;
+	Rose rose;
+	rose.lex("12a");
 
 
+	return 0;
 }
