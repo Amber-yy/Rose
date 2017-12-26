@@ -13,6 +13,8 @@ enum TokenType
 	Positive,
 	Negative,
 	Negation,
+	LeftCurBarack,
+	RightCurBarack,
 	PostIncrement,//这个区间放后置单目运算符
 	PostDecrement, //10
 	LeftBracket,
@@ -35,6 +37,8 @@ enum TokenType
 	LessEqual,
 	And,
 	Or,//30
+	LeftCopy,
+	RightCopy,
 	AddAssign,
 	SubAssign,
 	MultiAssign,
@@ -57,12 +61,12 @@ public:
 	Token &operator=(Token &&token);
 	TokenType getType() const;
 	std::string &getString() const;
-	int getInteger() const;
+	long long getInteger() const;
 	double getReal() const;
 	int getLine() const;
 	void setType(TokenType type);
 	void setString(std::string &string);
-	void setInteger(int vi);
+	void setInteger(long long vi);
 	void setReal(double vr);
 	void setLineNumber(int line);
 protected:

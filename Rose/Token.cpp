@@ -2,10 +2,10 @@
 
 struct Token::tokenData
 {
-	double vr;
 	std::string origin;
+	double vr;
+	long long vi;
 	TokenType type;
-	int vi;
 	int line;
 };
 
@@ -43,7 +43,7 @@ std::string & Token::getString() const
 	return data->origin;
 }
 
-int Token::getInteger() const
+long long Token::getInteger() const
 {
 	return data->vi;
 }
@@ -68,7 +68,7 @@ void Token::setString(std::string & string)
 	data->origin = std::move(string);
 }
 
-void Token::setInteger(int vi)
+void Token::setInteger(long long vi)
 {
 	data->vi = vi;
 }

@@ -27,6 +27,9 @@
     <ClCompile Include="Rose.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="ASTree.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Lexer.h">
@@ -36,6 +39,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Rose.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ASTree.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

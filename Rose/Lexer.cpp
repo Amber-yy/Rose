@@ -184,7 +184,43 @@ void Lexer::parse(std::string & code)
 			break;
 		}
 
-		if (isNumber(temp))//数字字面量，数字开头，中间可附带至多一个小数点
+		if (temp == '/')//注释
+		{
+			char t = getChar();
+			if (t == '/')//单行注释
+			{
+				while (true)
+				{
+					t = getChar();
+					if (t == '\n')
+					{
+						temp = t;
+						break;
+					}
+				}
+			}
+			else if (t == '*')//多行注释
+			{
+				while (t != -1)
+				{
+					t = getChar();
+					if (t == '*')
+					{
+						if (getChar() == '/')
+						{
+							break;
+						}
+					}
+				}
+				continue;
+			}
+			else
+			{
+				unGetChar();
+				unGetChar();
+			}
+		}
+		else if (isNumber(temp))//数字字面量，数字开头，中间可附带至多一个小数点
 		{
 			token += temp;
 			bool real=false;
@@ -234,9 +270,10 @@ void Lexer::parse(std::string & code)
 			else
 			{
 				t.setType(IntLiteral);
-				t.setInteger(atoi(token.c_str()));
+				t.setInteger(atoll(token.c_str()));
 			}
 			
+			t.setString(token);
 			data->allToken.push_back(std::move(t));
 		}
 		else if (isIdStart(temp))//标识符，字母或下划线开头，以后可包含字母、数字、下划线
@@ -349,6 +386,7 @@ void Lexer::parse(std::string & code)
 				Token t;
 				t.setLineNumber(line);
 				t.setType(AddAssign);
+				t.setString(std::string("+="));
 				data->allToken.push_back(std::move(t));
 				continue;
 			}
@@ -365,7 +403,7 @@ void Lexer::parse(std::string & code)
 				{
 					t.setType(PostIncrement);
 				}
-
+				t.setString(std::string("++"));
 				data->allToken.push_back(std::move(t));
 				continue;
 			}
@@ -382,7 +420,7 @@ void Lexer::parse(std::string & code)
 			{
 				t.setType(Add);
 			}
-
+			t.setString(std::string("+"));
 			data->allToken.push_back(std::move(t));
 			continue;
 		}
@@ -394,6 +432,7 @@ void Lexer::parse(std::string & code)
 				Token t;
 				t.setLineNumber(line);
 				t.setType(SubAssign);
+				t.setString(std::string("-="));
 				data->allToken.push_back(std::move(t));
 				continue;
 			}
@@ -410,7 +449,7 @@ void Lexer::parse(std::string & code)
 				{
 					t.setType(PostDecrement);
 				}
-
+				t.setString(std::string("--"));
 				data->allToken.push_back(std::move(t));
 				continue;
 			}
@@ -427,7 +466,7 @@ void Lexer::parse(std::string & code)
 			{
 				t.setType(Sub);
 			}
-
+			t.setString(std::string("-"));
 			data->allToken.push_back(std::move(t));
 			continue;
 		}
@@ -439,6 +478,7 @@ void Lexer::parse(std::string & code)
 				Token t;
 				t.setLineNumber(line);
 				t.setType(MultiAssign);
+				t.setString(std::string("*="));
 				data->allToken.push_back(std::move(t));
 				continue;
 			}
@@ -447,6 +487,7 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(Multi);
+			t.setString(std::string("*"));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp == '/')
@@ -457,6 +498,7 @@ void Lexer::parse(std::string & code)
 				Token t;
 				t.setLineNumber(line);
 				t.setType(DiviAssign);
+				t.setString(std::string("/="));
 				data->allToken.push_back(std::move(t));
 				continue;
 			}
@@ -465,6 +507,7 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(Divi);
+			t.setString(std::string("/"));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp == '%')
@@ -475,6 +518,7 @@ void Lexer::parse(std::string & code)
 				Token t;
 				t.setLineNumber(line);
 				t.setType(ModAssign);
+				t.setString(std::string("%="));
 				data->allToken.push_back(std::move(t));
 				continue;
 			}
@@ -483,6 +527,7 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(Mod);
+			t.setString(std::string("%"));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp == '=')
@@ -493,6 +538,7 @@ void Lexer::parse(std::string & code)
 				Token t;
 				t.setLineNumber(line);
 				t.setType(Equal);
+				t.setString(std::string("=="));
 				data->allToken.push_back(std::move(t));
 				continue;
 			}
@@ -501,6 +547,7 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(Assign);
+			t.setString(std::string("="));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp =='.')
@@ -518,6 +565,7 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(Member);
+			t.setString(std::string("."));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp == ',')
@@ -525,6 +573,7 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(Comma);
+			t.setString(std::string(","));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp=='!')
@@ -535,6 +584,7 @@ void Lexer::parse(std::string & code)
 				Token t;
 				t.setLineNumber(line);
 				t.setType(NotEqual);
+				t.setString(std::string("!="));
 				data->allToken.push_back(std::move(t));
 				continue;
 			}
@@ -543,6 +593,7 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(Negation);
+			t.setString(std::string("!"));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp == '>')
@@ -553,6 +604,16 @@ void Lexer::parse(std::string & code)
 				Token t;
 				t.setLineNumber(line);
 				t.setType(GreaterEqual);
+				t.setString(std::string(">="));
+				data->allToken.push_back(std::move(t));
+				continue;
+			}
+			if (next == '>')
+			{
+				Token t;
+				t.setLineNumber(line);
+				t.setType(RightCopy);
+				t.setString(std::string(">>"));
 				data->allToken.push_back(std::move(t));
 				continue;
 			}
@@ -561,6 +622,7 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(Greater);
+			t.setString(std::string(">"));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp == '<')
@@ -571,6 +633,16 @@ void Lexer::parse(std::string & code)
 				Token t;
 				t.setLineNumber(line);
 				t.setType(LessEqual);
+				t.setString(std::string("<="));
+				data->allToken.push_back(std::move(t));
+				continue;
+			}
+			if (next == '<')
+			{
+				Token t;
+				t.setLineNumber(line);
+				t.setType(LeftCopy);
+				t.setString(std::string("<<"));
 				data->allToken.push_back(std::move(t));
 				continue;
 			}
@@ -579,6 +651,7 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(Less);
+			t.setString(std::string("<"));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp == '&')
@@ -589,6 +662,7 @@ void Lexer::parse(std::string & code)
 				Token t;
 				t.setLineNumber(line);
 				t.setType(And);
+				t.setString(std::string("&&"));
 				data->allToken.push_back(std::move(t));
 				continue;
 			}
@@ -606,6 +680,7 @@ void Lexer::parse(std::string & code)
 				Token t;
 				t.setLineNumber(line);
 				t.setType(Or);
+				t.setString(std::string("||"));
 				data->allToken.push_back(std::move(t));
 				continue;
 			}
@@ -620,6 +695,7 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(LeftBracket);
+			t.setString(std::string("("));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp == ')')
@@ -627,6 +703,7 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(RightBracket);
+			t.setString(std::string(")"));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp == '[')
@@ -634,6 +711,7 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(LeftSqBracket);
+			t.setString(std::string("["));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp == ']')
@@ -641,6 +719,23 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(RightSqBracket);
+			t.setString(std::string("]"));
+			data->allToken.push_back(std::move(t));
+		}
+		else if (temp == '{')
+		{
+			Token t;
+			t.setLineNumber(line);
+			t.setType(LeftCurBarack);
+			t.setString(std::string("{"));
+			data->allToken.push_back(std::move(t));
+		}
+		else if (temp == '}')
+		{
+			Token t;
+			t.setLineNumber(line);
+			t.setType(RightCurBarack);
+			t.setString(std::string("}"));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp == '?')
@@ -648,6 +743,7 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(ConditionLeft);
+			t.setString(std::string("?"));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp == ':')
@@ -655,14 +751,15 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(ConditionRight);
+			t.setString(std::string(":"));
 			data->allToken.push_back(std::move(t));
 		}
 		else if (temp == '\n')
 		{
-			Token t;
+			/*Token t;
 			t.setLineNumber(line);
 			t.setType(EndOfLine);
-			data->allToken.push_back(std::move(t));
+			data->allToken.push_back(std::move(t));*/
 			++line;
 		}
 		else if (temp == ';')
@@ -670,6 +767,7 @@ void Lexer::parse(std::string & code)
 			Token t;
 			t.setLineNumber(line);
 			t.setType(EndOfState);
+			t.setString(std::string(";"));
 			data->allToken.push_back(std::move(t));
 		}
 		else
@@ -680,7 +778,7 @@ void Lexer::parse(std::string & code)
 		}
 
 	}
-
+	
 }
 
 const Token & Lexer::read()

@@ -1,10 +1,13 @@
 #include "Rose.h"
 
+#include <thread>
+
 int main()
 {
-	Rose rose;
-	rose.lex("12a");
+	Rose f;
+	std::this_thread::get_id();
 
 
 	return 0;
 }
+
