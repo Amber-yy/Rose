@@ -7,11 +7,15 @@ struct Token::tokenData
 	long long vi;
 	TokenType type;
 	int line;
+	bool isKey;
 };
 
 Token::Token()
 {
 	data = new tokenData;
+	data->vr = data->vi = 0;
+	data->line = 0;
+	data->isKey = false;
 }
 
 Token::Token(Token && token)
@@ -56,6 +60,16 @@ double Token::getReal() const
 int Token::getLine() const
 {
 	return data->line;
+}
+
+bool Token::isKeyword() const
+{
+	return data->isKey;
+}
+
+void Token::setKeyword(bool k)
+{
+	data->isKey = k;
 }
 
 void Token::setType(TokenType type)

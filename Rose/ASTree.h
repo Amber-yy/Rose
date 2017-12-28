@@ -5,9 +5,43 @@
 #include <vector>
 #include <list>
 
+enum DataType
+{
+	INT,
+	REAL,
+	STRING,
+	ARRAY,
+	MAP,
+	OBJECT,
+	FUNCTION,
+	USERDATA
+};
+
+class Rose;
+
+class Data
+{
+public:
+	virtual DataType getType() = 0;
+	virtual ~Data(){}
+	bool visited;
+	int counter;
+};
+
+class Integer :public Data
+{
+public:
+	virtual DataType getType()override;
+	long long value;
+};
+
 class Variable
 {
-
+public:
+	void clear();
+	bool isNil();
+	bool visited();
+	Data *data;
 };
 
 using Iterator = std::list<Variable>::iterator;
@@ -17,6 +51,7 @@ class ASTreeC
 {
 public:
 	virtual Variable evaluation() = 0;
+	Rose *rose;
 };
 
 using ASTree=std::shared_ptr < ASTreeC >;
@@ -31,7 +66,6 @@ class IdC:public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
 	std::string name;
 	int level;
 	int index;
@@ -42,26 +76,26 @@ using Id = std::shared_ptr < IdC >;
 /*
 表示字面量，整数、浮点数、字符串、函数等
 直接根据函数名调用函数时，函数名是字面量而非标识符，
-通过变量来调用函数时才是Id
+通过变量来调用函数时才是Id，Id对应Variable，Variable中保存着函数的索引
 */
 class LiteralC :public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
 	Variable value;
 };
 
 using Literal = std::shared_ptr < LiteralC >;
 
 /*变量的声明，一行可包含多个声明，遇到变量声明时创建对应的变量*/
-class VDefination :public ASTreeC
+class VDefinationC :public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
 	std::vector<std::string> names;
 };
+
+using VDefination = std::shared_ptr < VDefinationC >;
 
 /*
 单目运算符元素，由两部分组成：
@@ -140,7 +174,7 @@ using Unary = std::shared_ptr < UnaryC >;
 
 /*
 基本元素，由标识符、字面量、带圆括号的表达式、单目运算符、
-函数调用、匿名函数、数组访问之一构成
+函数调用、数组访问之一构成
 */
 class PrimaryC :public ASTreeC
 {
@@ -348,7 +382,7 @@ protected:
 	Expr second;
 };
 
-using TriC = std::shared_ptr < TriC >;
+using Tri = std::shared_ptr < TriC >;
 
 /*语句*/
 class StatementC :public ASTreeC
@@ -366,8 +400,7 @@ class BlockC :public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
-	std::vector<Statement> statements;
+	std::vector<ASTree> statements;
 };
 
 using Block = std::shared_ptr < BlockC >;
@@ -511,7 +544,6 @@ class FunDefinationC :public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
 	std::string name;
 	Block block;
 };

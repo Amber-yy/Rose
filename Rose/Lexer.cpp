@@ -55,6 +55,20 @@ static inline bool isDiv(char c)
 	return !isId(c);
 }
 
+static bool isKeyword(std::string &w)
+{
+	/*function class rose args if else while do break continue	for return*/
+
+	if (w == "function" || w == "class" || w == "rose" || w == "args" ||
+		w == "if" || w == "else" || w == "while" || w == "do" || w == "break" ||
+		w == "continue" || w == "for" || w == "return")
+	{
+		return true;
+	}
+
+	return false;
+}
+
 struct Lexer::lexerData
 {
 	std::vector<Token> allToken;
@@ -74,8 +88,6 @@ Lexer::~Lexer()
 {
 	delete data;
 }
-
-#include <iostream>
 
 void Lexer::parse(std::string & code)
 {
@@ -287,9 +299,14 @@ void Lexer::parse(std::string & code)
 
 			Token t;
 			t.setLineNumber(line);
-
-			t.setType(Identifier);
 			t.setString(token);
+			t.setType(Identifier);
+
+			if (isKeyword(token))
+			{
+				t.setKeyword(true);
+			}
+
 			data->allToken.push_back(std::move(t));
 		}
 		else if (isQuotes(temp))//×Ö·û´®×ÖÃæÁ¿
@@ -395,7 +412,7 @@ void Lexer::parse(std::string & code)
 			{
 				Token t;
 				t.setLineNumber(line);
-				if (findBinary())
+				if (findBinary()||!findValue())
 				{
 					t.setType(PreIncrement);	
 				}
@@ -441,7 +458,7 @@ void Lexer::parse(std::string & code)
 			{
 				Token t;
 				t.setLineNumber(line);
-				if (findBinary())
+				if (findBinary() || !findValue())
 				{
 					t.setType(PreDecrement);
 				}

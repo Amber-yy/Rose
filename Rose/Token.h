@@ -14,9 +14,9 @@ enum TokenType
 	Negative,
 	Negation,
 	LeftCurBarack,
-	RightCurBarack,
+	RightCurBarack,//10
 	PostIncrement,//这个区间放后置单目运算符
-	PostDecrement, //10
+	PostDecrement, 
 	LeftBracket,
 	RightBracket,
 	LeftSqBracket,
@@ -24,9 +24,9 @@ enum TokenType
 	Add,//这个区间放双目运算符
 	Sub,
 	Multi,
-	Divi,
+	Divi,//20
 	Mod,
-	Assign,//20
+	Assign,
 	Member,
 	Comma,
 	Greater,
@@ -34,9 +34,9 @@ enum TokenType
 	Equal,
 	NotEqual,
 	GreaterEqual,
-	LessEqual,
+	LessEqual,//30
 	And,
-	Or,//30
+	Or,
 	LeftCopy,
 	RightCopy,
 	AddAssign,
@@ -44,7 +44,7 @@ enum TokenType
 	MultiAssign,
 	DiviAssign,
 	ModAssign,
-	ConditionLeft,//三目运算符
+	ConditionLeft,//三目运算符 40
 	ConditionRight,
 	EndOfLine,
 	EndOfState,
@@ -64,6 +64,8 @@ public:
 	long long getInteger() const;
 	double getReal() const;
 	int getLine() const;
+	bool isKeyword() const;
+	void setKeyword(bool k);
 	void setType(TokenType type);
 	void setString(std::string &string);
 	void setInteger(long long vi);

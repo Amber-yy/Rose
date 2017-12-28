@@ -4,8 +4,7 @@
 
 int main()
 {
-	Rose f;
-	std::this_thread::get_id();
+	Rose s;
 
 
 	return 0;
