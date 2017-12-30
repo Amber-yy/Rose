@@ -48,6 +48,7 @@ enum TokenType
 	ConditionRight,
 	EndOfLine,
 	EndOfState,
+	In,
 };
 
 class Token

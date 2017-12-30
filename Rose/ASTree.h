@@ -50,7 +50,7 @@ using Iterator = std::list<Variable>::iterator;
 class ASTreeC
 {
 public:
-	virtual Variable evaluation() = 0;
+	virtual Variable evaluation() = 0;//增加一个type，用于判断类型
 	Rose *rose;
 };
 
@@ -413,9 +413,10 @@ class ReturnStateC :public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
 	Expr value;
 };
+
+using ReturnState = std::shared_ptr < ReturnStateC >;
 
 /*
 if语句，
@@ -425,7 +426,6 @@ class IfStateC :public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
 	Expr condition;
 	ASTree states;
 	ASTree eStates;
@@ -442,7 +442,6 @@ class WhileStateC :public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
 	Expr condition;
 	ASTree states;
 };
@@ -456,7 +455,6 @@ class DoWhileStateC :public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
 	Expr condition;
 	ASTree states;
 };
@@ -472,7 +470,6 @@ class ForStateC :public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
 	Expr ini;
 	Expr condition;
 	Expr change;
@@ -486,7 +483,6 @@ class ForEachC :public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
 	Id it;
 	Id container;
 	ASTree states;

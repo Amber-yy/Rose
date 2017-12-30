@@ -15,6 +15,7 @@ public:
 struct Rose::RoseData
 {
 	ASTree getState();
+	ASTree getId();
 	ASTree getPrimary();
 	ASTree getVDefination();
 	ASTree getBlock();
@@ -24,14 +25,19 @@ struct Rose::RoseData
 	ASTree getForState();
 	ASTree getReturnState();
 	ASTree getExprState();
+	ASTree getExpr();
 	ASTree getFunDefination();
 	void getToken(const std::string &t);
-	void getGlobalDefination();
+	void getGlobalDefination(std::vector<std::string> &names,int start);
 	void addError(int line, const std::string &);
 	bool isVDefination();
+	Rose *rose;
 	Lexer *currentLexer;
-	std::vector<std::map<std::string, int>> vName;
-	std::vector<Iterator> globalVariables;
+	std::vector<std::map<std::string, int>> vName;//分析时符号表
+	std::map<std::string, int> globals;//全局符号表
+	std::map<std::string, int> functionName;//从函数名到实际函数的映射
+	std::vector<ASTree> functions;//实际的函数
+	std::vector<Iterator> globalVariablesIndex;
 	std::list<Variable> variables;
 	int currentLevel;
 };
@@ -57,8 +63,9 @@ void Rose::doString(const std::string & code)
 	{
 		Lexer t(this);
 		data->currentLexer = &t;
-
-		data->getGlobalDefination();//处理全局变量
+		data->currentLevel = 1;
+		std::vector<std::string> globalV;
+		data->getGlobalDefination(globalV,data->globals.size());//处理全局变量
 
 		//然后处理函数定义和类定义
 
@@ -68,7 +75,6 @@ void Rose::doString(const std::string & code)
 
 			if (t.getString() == "function")
 			{
-				data->currentLevel = 1;
 				data->getFunDefination();
 			}
 			else if (t.getString() == "class")
@@ -80,6 +86,16 @@ void Rose::doString(const std::string & code)
 				addError(t.getLine(), "函数或类的定义格式错误");
 			}
 		}
+
+		int start = data->globals.size();
+		for (int i = 0; i<globalV.size(); ++i, ++start)//仅仅为变量创建空间，不为函数创建
+		{
+			data->globals.insert(std::pair<std::string, int>(globalV[i], start));//全局变量增加一个
+			data->variables.push_back(Variable());
+			data->globalVariablesIndex.push_back(std::move(--data->variables.end()));//全局变量，编号与实际迭代器互转
+		}
+
+		data->vName.clear();
 	}
 	catch (ParseExcepetion &p)
 	{
@@ -103,7 +119,7 @@ ASTree Rose::RoseData::getFunDefination()
 		addError(t.getLine(), "不能使用关键字作为函数名");
 	}
 
-	if(vName[0].find(t.getString())!=vName[0].end())
+	if(globals.find(t.getString())!=globals.end()||vName[0].find(t.getString())!=vName[0].end())
 	{
 		addError(t.getLine(), "全局标识符重定义");
 	}
@@ -124,11 +140,12 @@ ASTree Rose::RoseData::getBlock()
 	getToken("{");
 
 	Block b = std::make_shared<BlockC>();
+	b->rose = rose;
 
 	while (currentLexer->hasMore())
 	{
 		const Token &t = currentLexer->peek(0);
-		if (t.getString() == "}")
+		if (t.getType() ==RightCurBarack)
 		{
 			break;
 		}
@@ -137,7 +154,7 @@ ASTree Rose::RoseData::getBlock()
 			addError(t.getLine(), "缺少}");
 		}
 
-		if (t.getString() == "{")
+		if (t.getType() == LeftCurBarack)
 		{
 			b->statements.push_back(getBlock());
 		}
@@ -153,32 +170,178 @@ ASTree Rose::RoseData::getBlock()
 
 ASTree Rose::RoseData::getIfState()
 {
+	IfState t= std::make_shared<IfStateC>();
+
+	currentLexer->read();
+	getToken("(");
+	t->condition=getExpr();
+	getToken(")");
+
+	if (currentLexer->peek(0).getType() ==LeftCurBarack)
+	{
+		t->states=getBlock();
+	}
+	else
+	{
+		t->states = getState();
+	}
+
+	if (currentLexer->peek(0).getString() == "else")
+	{
+		currentLexer->read();
+		if (currentLexer->peek(0).getType() == LeftCurBarack)
+		{
+			t->eStates = getBlock();
+		}
+		else
+		{
+			t->eStates = getState();
+		}
+	}
+
+	t->rose = rose;
+	
+	return t;
+}
+
+ASTree Rose::RoseData::getExpr()
+{
 	return ASTree();
 }
 
 ASTree Rose::RoseData::getWhileState()
 {
-	return ASTree();
+	WhileState t = std::make_shared<WhileStateC>();
+
+	currentLexer->read();
+	getToken("(");
+	t->condition = getExpr();
+	getToken(")");
+
+	if (currentLexer->peek(0).getType() == LeftCurBarack)
+	{
+		t->states = getBlock();
+	}
+	else
+	{
+		t->states = getState();
+	}
+
+	return t;
 }
 
 ASTree Rose::RoseData::getDoWhileState()
 {
-	return ASTree();
+	DoWhileState t = std::make_shared<DoWhileStateC>();
+
+	currentLexer->read();
+
+	if (currentLexer->peek(0).getType() == LeftCurBarack)
+	{
+		t->states = getBlock();
+	}
+	else
+	{
+		t->states = getState();
+	}
+
+	getToken("while");
+	getToken("(");
+	t->condition = getExpr();
+	getToken(")");
+	getToken(";");
+
+	return t;
 }
 
 ASTree Rose::RoseData::getForState()
 {
-	return ASTree();
+	ASTree t;
+
+	bool isForEach = false;
+
+	for (int i = 0; currentLexer->hasMore(i); ++i)
+	{
+		const Token &t = currentLexer->peek(i);
+		if (t.getType() == RightBracket)
+		{
+			break;
+		}
+		if (t.getType() == In)
+		{
+			isForEach = true;
+			break;
+		}
+		if (t.getType() == EndOfState)
+		{
+			break;
+		}
+	}
+
+	if (isForEach)
+	{
+		ForEach s = std::make_shared<ForEachC>();
+
+		currentLexer->read();
+		getToken("(");
+		s->it = getId();
+		getToken("#");
+		s->container = getExpr();
+		getToken(")");
+
+		if (currentLexer->peek(0).getType() == LeftCurBarack)
+		{
+			s->states = getBlock();
+		}
+		else
+		{
+			s->states = getState();
+		}
+
+		t = s;
+	}
+	else
+	{
+		ForState s = std::make_shared<ForStateC>();
+
+		currentLexer->read();
+		getToken("(");
+		s->ini = getExprState();
+		s->condition = getExprState();
+		s->change = getExpr();
+		getToken(")");
+
+		if (currentLexer->peek(0).getType() == LeftCurBarack)
+		{
+			s->states = getBlock();
+		}
+		else
+		{
+			s->states = getState();
+		}
+
+		t = s;
+	}
+
+
+	return t;
 }
 
 ASTree Rose::RoseData::getReturnState()
 {
-	return ASTree();
+	ReturnState t = std::make_unique<ReturnStateC>();
+	
+	currentLexer->read();
+	t->value = getExprState();
+
+	return t;
 }
 
 ASTree Rose::RoseData::getExprState()
 {
-	return ASTree();
+	ASTree t=getExpr();
+	getToken(";");
+	return t;
 }
 
 ASTree Rose::RoseData::getState()
@@ -204,8 +367,64 @@ ASTree Rose::RoseData::getState()
 	{
 		return getReturnState();
 	}
+	if (isVDefination())
+	{
+		return getVDefination();
+	}
 
 	return getExprState();
+}
+
+ASTree Rose::RoseData::getId()
+{
+	return ASTree();
+}
+
+ASTree Rose::RoseData::getVDefination()
+{
+	std::vector<std::string> names;
+
+	while (true)
+	{
+		const Token &t = currentLexer->peek(0);
+		if (t.getType() == Identifier)
+		{
+			if (vName[currentLevel].find(t.getString()) != vName[currentLevel].end())
+			{
+				addError(t.getLine(), "局部变量重定义");
+			}
+
+			names.push_back(t.getString());
+			vName[currentLevel].insert(std::pair<std::string, int>(t.getString(), vName[currentLevel].size()));
+			currentLexer->read();
+
+			TokenType p = currentLexer->peek(0).getType();
+
+			if (p == Comma)
+			{
+				currentLexer->read();
+				continue;
+			}
+			else if (p == EndOfState)
+			{
+				currentLexer->read();
+				if (isVDefination())
+				{
+					continue;
+				}
+				else
+				{
+					break;
+				}
+			}
+		}
+	}
+
+	VDefination t = std::make_shared<VDefinationC>();
+	t->names = std::move(names);
+	t->rose = rose;
+
+	return t;
 }
 
 void Rose::RoseData::getToken(const std::string & t)
@@ -222,6 +441,7 @@ void Rose::RoseData::getToken(const std::string & t)
 Rose::Rose()
 {
 	data = new RoseData;
+	data->rose = this;
 	Lexer t(this);
 	t.parse(std::string("i++ += ++b"));
 
@@ -242,34 +462,26 @@ ASTree Rose::RoseData::getPrimary()
 	return ASTree();
 }
 
-ASTree Rose::RoseData::getVDefination()
-{
-	
-	return ASTree();
-}
-
-void Rose::RoseData::getGlobalDefination()
+void Rose::RoseData::getGlobalDefination(std::vector<std::string> &names,int start)
 {
 	if (!isVDefination())
 	{
 		return;
 	}
 
-	std::vector<std::string> names;
-	std::set<std::string> set;
-
 	while (true)
 	{
 		const Token &t = currentLexer->peek(0);
 		if (t.getType() == Identifier)
 		{
-			if (vName[0].find(t.getString()) != vName[0].end()||set.find(t.getString()) != set.end())
+			if (globals.find(t.getString()) != globals.end() || vName[0].find(t.getString()) != vName[0].end())
 			{
 				addError(t.getLine(),"全局标识符重定义");
 			}
 
 			names.push_back(t.getString());
-			set.insert(t.getString());
+			vName[0].insert(std::pair<std::string, int>(t.getString(),start));
+			++start;
 			currentLexer->read();
 
 			TokenType p= currentLexer->peek(0).getType();
@@ -296,14 +508,6 @@ void Rose::RoseData::getGlobalDefination()
 		addError(t.getLine(), "变量声明格式错误");
 	}
 
-	int start = vName[0].size();
-	for (int i = 0; i<names.size(); ++i, ++start)
-	{
-		vName[0].insert(std::pair<std::string, int>(names[i], start));
-		variables.push_back(Variable());
-		globalVariables.push_back(std::move(--variables.end()));//全局变量，编号与实际迭代器互转
-	}
-
 }
 
 void Rose::RoseData::addError(int line, const std::string &e)
@@ -315,7 +519,7 @@ void Rose::RoseData::addError(int line, const std::string &e)
 bool Rose::RoseData::isVDefination()
 {
 	int i;
-	for (i = 0;currentLexer->hasMore(); ++i)
+	for (i = 0;currentLexer->hasMore(i); ++i)
 	{
 		const Token &t = currentLexer->peek(i);
 		TokenType p = t.getType();

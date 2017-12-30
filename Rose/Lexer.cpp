@@ -771,6 +771,14 @@ void Lexer::parse(std::string & code)
 			t.setString(std::string(":"));
 			data->allToken.push_back(std::move(t));
 		}
+		else if (temp == '#')
+		{
+			Token t;
+			t.setLineNumber(line);
+			t.setType(In);
+			t.setString(std::string("#"));
+			data->allToken.push_back(std::move(t));
+		}
 		else if (temp == '\n')
 		{
 			/*Token t;
@@ -809,7 +817,7 @@ const Token & Lexer::peek(int index)
 	return data->allToken[data->currentIndex +index];
 }
 
-bool Lexer::hasMore()
+bool Lexer::hasMore(int index = 0)
 {
-	return data->currentIndex<data->allToken.size();
+	return data->currentIndex+index<data->allToken.size();
 }

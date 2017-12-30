@@ -12,7 +12,7 @@ public:
 	void parse(std::string &code);
 	const Token &read();
 	const Token &peek(int index);
-	bool hasMore();
+	bool hasMore(int index=0);
 protected:
 	struct lexerData;
 	lexerData *data;
