@@ -2,6 +2,12 @@
 #include "Lexer.h"
 #include "Rose.h"
 
+class ParseExcepetion :public std::exception
+{
+public:
+	ParseExcepetion(const char *msg) :exception(msg) {}
+};
+
 static inline bool isSpace(char c)
 {
 	return 0 <= c&&c <= ' ';
@@ -809,6 +815,10 @@ void Lexer::parse(std::string & code)
 const Token & Lexer::read()
 {
 	++data->currentIndex;
+	if (data->currentIndex >= data->allToken.size())
+	{
+		throw ParseExcepetion("代码不完整，缺少必要的Token");
+	}
 	return data->allToken[data->currentIndex - 1];
 }
 

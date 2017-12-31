@@ -6,7 +6,6 @@ int main()
 {
 	Rose s;
 
-
 	return 0;
 }
 

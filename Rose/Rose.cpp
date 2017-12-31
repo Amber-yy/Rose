@@ -2,6 +2,9 @@
 #include "ASTree.h"
 #include "Lexer.h"
 
+#include <fstream>
+#include <streambuf>  
+#include <functional>
 #include <map>
 #include <list>
 #include <set>
@@ -11,6 +14,22 @@ class ParseExcepetion :public std::exception
 public:
 	ParseExcepetion(const char *msg) :exception(msg){}
 };
+
+struct op
+{
+	op(int v,bool r):value(v),isRight(r){}
+	int value;
+	bool isRight;
+};
+
+bool rightIsExpr(op l, op r)
+{
+	if (r.isRight)
+	{
+		return r.value >= l.value;
+	}
+	return r.value > l.value;
+}
 
 struct Rose::RoseData
 {
@@ -27,6 +46,10 @@ struct Rose::RoseData
 	ASTree getExprState();
 	ASTree getExpr();
 	ASTree getFunDefination();
+	TokenType peekNextOperator();
+	TokenType getNextOperator();
+	void doShift(Expr left, op o);
+	void getBinaryCreator();
 	void getToken(const std::string &t);
 	void getGlobalDefination(std::vector<std::string> &names,int start);
 	void addError(int line, const std::string &);
@@ -37,6 +60,8 @@ struct Rose::RoseData
 	std::map<std::string, int> globals;//全局符号表
 	std::map<std::string, int> functionName;//从函数名到实际函数的映射
 	std::vector<ASTree> functions;//实际的函数
+	std::map<TokenType, std::function<Binary()>> binaryCreator;
+	std::map<TokenType,op> priority;
 	std::vector<Iterator> globalVariablesIndex;
 	std::list<Variable> variables;
 	int currentLevel;
@@ -49,20 +74,38 @@ void Rose::addError(int line, const std::string &info)
 
 void Rose::doFile(const std::string & fileName)
 {
+	std::ifstream in(fileName);
+	
+	if (!in.is_open())
+	{
+		addError(0, "无法打开文件" + fileName);
+		return;
+	}
 
+	std::istreambuf_iterator<char> begin(in), end;
+	std::string temp(begin, end);
+	doString(temp);
 }
 
 void Rose::doFiles(const std::vector<std::string>& fileNames)
 {
-
+	for (auto &s : fileNames)
+	{
+		doFile(s);
+	}
 }
 
-void Rose::doString(const std::string & code)
+void Rose::doString(std::string & code)
 {
 	try
 	{
 		Lexer t(this);
+		t.parse(code);
 		data->currentLexer = &t;
+		if (!t.hasMore())
+		{
+			return;
+		}
 		data->currentLevel = 1;
 		std::vector<std::string> globalV;
 		data->getGlobalDefination(globalV,data->globals.size());//处理全局变量
@@ -132,6 +175,77 @@ ASTree Rose::RoseData::getFunDefination()
 	fun->block=getBlock();
 
 	return fun;
+}
+
+TokenType Rose::RoseData::peekNextOperator()
+{
+
+	return TokenType();
+}
+
+TokenType Rose::RoseData::getNextOperator()
+{
+	const Token &t = currentLexer->read();
+	return t.getType();
+}
+
+void Rose::RoseData::getBinaryCreator()
+{
+
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Add, []()->Binary{return std::make_shared<AddC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Sub, []()->Binary {return std::make_shared<SubC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Multi, []()->Binary {return std::make_shared<MultiC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Divi, []()->Binary {return std::make_shared<DiviC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Mod, []()->Binary {return std::make_shared<ModC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Member, []()->Binary {return std::make_shared<MemberC>(); }));
+
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Comma, []()->Binary {return std::make_shared<CommaC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Greater, []()->Binary {return std::make_shared<GreaterC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Less, []()->Binary {return std::make_shared<LessC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Equal, []()->Binary {return std::make_shared<EqualC>(); }));
+
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(NotEqual, []()->Binary {return std::make_shared<NotEqualC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(GreaterEqual, []()->Binary {return std::make_shared<GreaterEqualC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(LessEqual, []()->Binary {return std::make_shared<LessEqualC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(And, []()->Binary {return std::make_shared<AndC>(); }));
+
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Or, []()->Binary {return std::make_shared<OrC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(LeftCopy, []()->Binary {return std::make_shared<LeftCopyC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(RightCopy, []()->Binary {return std::make_shared<RightCopyC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(AddAssign, []()->Binary {return std::make_shared<AddAssignC>(); }));
+
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(SubAssign, []()->Binary {return std::make_shared<SubAssignC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(MultiAssign, []()->Binary {return std::make_shared<MultiAssignC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(DiviAssign, []()->Binary {return std::make_shared<DiviAssignC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(ModAssign, []()->Binary {return std::make_shared<ModAssignC>(); }));
+
+	priority.insert(std::pair<TokenType, op>(Add, op(1,false)));
+	priority.insert(std::pair<TokenType, op>(Sub, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(Multi, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(Divi, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(Mod, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(Member, op(1, false)));
+
+	priority.insert(std::pair<TokenType, op>(Comma, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(Greater, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(Less, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(Equal, op(1, false)));
+
+	priority.insert(std::pair<TokenType, op>(NotEqual, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(GreaterEqual, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(LessEqual, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(And, op(1, false)));
+
+	priority.insert(std::pair<TokenType, op>(Or, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(LeftCopy, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(RightCopy, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(AddAssign, op(1, false)));
+
+	priority.insert(std::pair<TokenType, op>(SubAssign, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(MultiAssign, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(DiviAssign, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(ModAssign, op(1, false)));
+
 }
 
 ASTree Rose::RoseData::getBlock()
@@ -206,7 +320,56 @@ ASTree Rose::RoseData::getIfState()
 
 ASTree Rose::RoseData::getExpr()
 {
-	return ASTree();
+	Expr t = std::make_shared<ExprC>();
+
+	while (currentLexer->hasMore())
+	{
+		t->left = getPrimary();
+		TokenType p = getNextOperator();
+		auto it = binaryCreator.find(p);
+		if (it == binaryCreator.end())
+		{
+			break;
+		}
+
+		t->op = it->second();
+		t->right = getPrimary();
+
+		op op1 = priority.find(p)->second;
+		p = peekNextOperator();
+		auto it2= priority.find(p);
+		if (it2 == priority.end())
+		{
+			break;
+		}
+		op op2 = it2->second;
+
+		if (rightIsExpr(op1, op2))
+		{
+			doShift(t, op1);
+		}
+
+	}
+
+	return t;
+}
+
+void Rose::RoseData::doShift(Expr left, op o)
+{
+	Expr t = std::make_shared<ExprC>();
+	t->left = left->right;
+	left->right = nullptr;
+
+	while (currentLexer->hasMore())
+	{
+		TokenType t = getNextOperator();
+
+
+
+
+
+
+	}
 }
 
 ASTree Rose::RoseData::getWhileState()
@@ -429,7 +592,7 @@ ASTree Rose::RoseData::getVDefination()
 
 void Rose::RoseData::getToken(const std::string & t)
 {
-	if (currentLexer->peek(0).getString == t)
+	if (currentLexer->peek(0).getString() == t)
 	{
 		currentLexer->read();
 	}
@@ -442,6 +605,7 @@ Rose::Rose()
 {
 	data = new RoseData;
 	data->rose = this;
+	data->getBinaryCreator();
 	Lexer t(this);
 	t.parse(std::string("i++ += ++b"));
 

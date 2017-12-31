@@ -13,7 +13,6 @@ enum DataType
 	ARRAY,
 	MAP,
 	OBJECT,
-	FUNCTION,
 	USERDATA
 };
 
@@ -157,7 +156,6 @@ class PostIncrementC :public UnaryC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
 	ASTree value;
 };
 
@@ -363,7 +361,6 @@ class ExprC :public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
 	ASTree left;
 	Binary op;
 	ASTree right;
