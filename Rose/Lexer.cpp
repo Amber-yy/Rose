@@ -824,6 +824,10 @@ const Token & Lexer::read()
 
 const Token & Lexer::peek(int index)
 {
+	if (data->currentIndex+index>= data->allToken.size())
+	{
+		throw ParseExcepetion("代码不完整，缺少必要的Token");
+	}
 	return data->allToken[data->currentIndex +index];
 }
 

@@ -48,7 +48,7 @@ struct Rose::RoseData
 	ASTree getFunDefination();
 	TokenType peekNextOperator();
 	TokenType getNextOperator();
-	void doShift(Expr left, op o);
+	Expr doShift(ASTree left, op o);
 	void getBinaryCreator();
 	void getToken(const std::string &t);
 	void getGlobalDefination(std::vector<std::string> &names,int start);
@@ -179,8 +179,8 @@ ASTree Rose::RoseData::getFunDefination()
 
 TokenType Rose::RoseData::peekNextOperator()
 {
-
-	return TokenType();
+	const Token &t = currentLexer->peek(0);
+	return t.getType();
 }
 
 TokenType Rose::RoseData::getNextOperator()
@@ -197,7 +197,7 @@ void Rose::RoseData::getBinaryCreator()
 	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Multi, []()->Binary {return std::make_shared<MultiC>(); }));
 	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Divi, []()->Binary {return std::make_shared<DiviC>(); }));
 	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Mod, []()->Binary {return std::make_shared<ModC>(); }));
-	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Member, []()->Binary {return std::make_shared<MemberC>(); }));
+	//binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Member, []()->Binary {return std::make_shared<MemberC>(); }));
 
 	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Comma, []()->Binary {return std::make_shared<CommaC>(); }));
 	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Greater, []()->Binary {return std::make_shared<GreaterC>(); }));
@@ -218,33 +218,36 @@ void Rose::RoseData::getBinaryCreator()
 	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(MultiAssign, []()->Binary {return std::make_shared<MultiAssignC>(); }));
 	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(DiviAssign, []()->Binary {return std::make_shared<DiviAssignC>(); }));
 	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(ModAssign, []()->Binary {return std::make_shared<ModAssignC>(); }));
+	binaryCreator.insert(std::pair<TokenType, std::function<Binary()>>(Assign, []()->Binary {return std::make_shared<AssignC>(); }));
 
-	priority.insert(std::pair<TokenType, op>(Add, op(1,false)));
-	priority.insert(std::pair<TokenType, op>(Sub, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(Multi, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(Divi, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(Mod, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(Member, op(1, false)));
+
+	priority.insert(std::pair<TokenType, op>(Add, op(7,false)));
+	priority.insert(std::pair<TokenType, op>(Sub, op(7, false)));
+	priority.insert(std::pair<TokenType, op>(Multi, op(8, false)));
+	priority.insert(std::pair<TokenType, op>(Divi, op(8, false)));
+	priority.insert(std::pair<TokenType, op>(Mod, op(8, false)));
+	//priority.insert(std::pair<TokenType, op>(Member, op(9, false)));
 
 	priority.insert(std::pair<TokenType, op>(Comma, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(Greater, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(Less, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(Equal, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(Greater, op(6, false)));
+	priority.insert(std::pair<TokenType, op>(Less, op(6, false)));
+	priority.insert(std::pair<TokenType, op>(Equal, op(5, false)));
 
-	priority.insert(std::pair<TokenType, op>(NotEqual, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(GreaterEqual, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(LessEqual, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(And, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(NotEqual, op(5, false)));
+	priority.insert(std::pair<TokenType, op>(GreaterEqual, op(6, false)));
+	priority.insert(std::pair<TokenType, op>(LessEqual, op(6, false)));
+	priority.insert(std::pair<TokenType, op>(And, op(4, false)));
 
-	priority.insert(std::pair<TokenType, op>(Or, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(LeftCopy, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(RightCopy, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(AddAssign, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(Or, op(3, false)));
+	priority.insert(std::pair<TokenType, op>(LeftCopy, op(2, false)));
+	priority.insert(std::pair<TokenType, op>(RightCopy, op(2, false)));
+	priority.insert(std::pair<TokenType, op>(AddAssign, op(2, false)));
 
-	priority.insert(std::pair<TokenType, op>(SubAssign, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(MultiAssign, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(DiviAssign, op(1, false)));
-	priority.insert(std::pair<TokenType, op>(ModAssign, op(1, false)));
+	priority.insert(std::pair<TokenType, op>(SubAssign, op(2, false)));
+	priority.insert(std::pair<TokenType, op>(MultiAssign, op(2, false)));
+	priority.insert(std::pair<TokenType, op>(DiviAssign, op(2, false)));
+	priority.insert(std::pair<TokenType, op>(ModAssign, op(2, false)));
+	priority.insert(std::pair<TokenType, op>(Assign, op(2, false)));
 
 }
 
@@ -279,6 +282,7 @@ ASTree Rose::RoseData::getBlock()
 	}
 
 	getToken("}");
+	vName[currentLevel].clear();
 	--currentLevel;
 }
 
@@ -320,56 +324,60 @@ ASTree Rose::RoseData::getIfState()
 
 ASTree Rose::RoseData::getExpr()
 {
-	Expr t = std::make_shared<ExprC>();
+	Expr t= std::make_shared<ExprC>();
+	ASTree left=getPrimary();
 
+	if (left.get() == nullptr)
+	{
+		addError(currentLexer->peek(0).getLine(),"应输入表达式");
+	}
+	
+	t->left = left;
 	while (currentLexer->hasMore())
 	{
-		t->left = getPrimary();
-		TokenType p = getNextOperator();
-		auto it = binaryCreator.find(p);
-		if (it == binaryCreator.end())
+		TokenType p = peekNextOperator();
+		auto it = priority.find(p);
+
+		if (it == priority.end())
 		{
 			break;
 		}
 
-		t->op = it->second();
-		t->right = getPrimary();
-
-		op op1 = priority.find(p)->second;
-		p = peekNextOperator();
-		auto it2= priority.find(p);
-		if (it2 == priority.end())
-		{
-			break;
-		}
-		op op2 = it2->second;
-
-		if (rightIsExpr(op1, op2))
-		{
-			doShift(t, op1);
-		}
-
+		t=doShift(left, it->second);
+		left = t;
 	}
 
-	return t;
+	left->rose = rose;
+
+	return left;
 }
 
-void Rose::RoseData::doShift(Expr left, op o)
+Expr Rose::RoseData::doShift(ASTree left, op o)
 {
 	Expr t = std::make_shared<ExprC>();
-	t->left = left->right;
-	left->right = nullptr;
+	t->left = left;
+	t->op = binaryCreator.find(getNextOperator())->second();
+	ASTree right = getPrimary();
 
 	while (currentLexer->hasMore())
 	{
-		TokenType t = getNextOperator();
+		TokenType p = peekNextOperator();
+		auto it = priority.find(p);
 
+		if (it == priority.end())
+		{
+			break;
+		}
 
-
-
-
-
+		if (rightIsExpr(o, it->second))
+		{
+			t->right=doShift(right, it->second);
+		}
 	}
+
+	t->rose = rose;
+
+	return t;
 }
 
 ASTree Rose::RoseData::getWhileState()
@@ -389,6 +397,8 @@ ASTree Rose::RoseData::getWhileState()
 	{
 		t->states = getState();
 	}
+
+	t->rose = rose;
 
 	return t;
 }
@@ -413,6 +423,8 @@ ASTree Rose::RoseData::getDoWhileState()
 	t->condition = getExpr();
 	getToken(")");
 	getToken(";");
+
+	t->rose = rose;
 
 	return t;
 }
@@ -486,6 +498,7 @@ ASTree Rose::RoseData::getForState()
 		t = s;
 	}
 
+	t->rose = rose;
 
 	return t;
 }
@@ -496,20 +509,37 @@ ASTree Rose::RoseData::getReturnState()
 	
 	currentLexer->read();
 	t->value = getExprState();
+	t->rose = rose;
 
 	return t;
 }
 
 ASTree Rose::RoseData::getExprState()
 {
-	ASTree t=getExpr();
+	if (currentLexer->peek(0).getType()==EndOfLine)
+	{
+		return ASTree();
+	}
+
+	ASTree t=getExpr();//可能会有空语句
 	getToken(";");
+	t->rose = rose;
+
 	return t;
 }
 
 ASTree Rose::RoseData::getState()
 {
 	const Token &t = currentLexer->peek(0);
+
+	if (t.getType() == EndOfState)//空语句
+	{
+		currentLexer->read();
+		Expr c = std::make_shared<ExprC>();
+		c->rose = rose;
+		return c;
+	}
+
 	if (t.getString() == "if")
 	{
 		return getIfState();
@@ -623,6 +653,14 @@ Rose::~Rose()
 
 ASTree Rose::RoseData::getPrimary()
 {
+
+
+
+
+
+
+
+
 	return ASTree();
 }
 
@@ -683,13 +721,21 @@ void Rose::RoseData::addError(int line, const std::string &e)
 bool Rose::RoseData::isVDefination()
 {
 	int i;
+	bool ok = false;
 	for (i = 0;currentLexer->hasMore(i); ++i)
 	{
 		const Token &t = currentLexer->peek(i);
 		TokenType p = t.getType();
 		if (p == EndOfState)
 		{
-			return true;
+			if (ok)
+			{
+				return true;
+			}
+			else
+			{
+				return false;
+			}
 		}
 		if (t.isKeyword())
 		{
@@ -699,6 +745,7 @@ bool Rose::RoseData::isVDefination()
 		{
 			return false;
 		}
+		ok = true;
 	}
 
 	addError(currentLexer->peek(i-1).getLine(),"缺少分号");
