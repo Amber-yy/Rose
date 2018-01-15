@@ -2,7 +2,7 @@
 
 DataType Integer::getType()
 {
-	return DataType();
+	return INT;
 }
 
 void Variable::clear()
@@ -249,11 +249,6 @@ Variable FunCallC::evaluation()
 	return Variable();
 }
 
-Variable MemFunCall::evaluation()
-{
-	return Variable();
-}
-
 Variable FunDefinationC::evaluation()
 {
 	return Variable();
@@ -262,4 +257,19 @@ Variable FunDefinationC::evaluation()
 Variable ArrayDefination::evaluation()
 {
 	return Variable();
+}
+
+Variable MemAccessC::evaluation()
+{
+	return Variable();
+}
+
+DataType Real::getType()
+{
+	return REAL;
+}
+
+DataType String::getType()
+{
+	return STRING;
 }

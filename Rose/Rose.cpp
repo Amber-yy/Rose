@@ -35,6 +35,12 @@ struct Rose::RoseData
 {
 	ASTree getState();
 	ASTree getId();
+	ASTree getAtomic();
+	ASTree getLiteral();
+	ASTree getFunCall();
+	ASTree getArrayAccess();
+	ASTree getArrayDefine();
+	ASTree getUnary();
 	ASTree getPrimary();
 	ASTree getVDefination();
 	ASTree getBlock();
@@ -44,7 +50,7 @@ struct Rose::RoseData
 	ASTree getForState();
 	ASTree getReturnState();
 	ASTree getExprState();
-	ASTree getExpr();
+	ASTree getExpr(bool comma=false);
 	ASTree getFunDefination();
 	TokenType peekNextOperator();
 	TokenType getNextOperator();
@@ -171,6 +177,7 @@ ASTree Rose::RoseData::getFunDefination()
 	getToken(")");
 
 	FunDefination fun = std::make_shared<FunDefinationC>();
+	fun->rose = rose;
 	fun->name = t.getString();
 	fun->block=getBlock();
 
@@ -289,6 +296,7 @@ ASTree Rose::RoseData::getBlock()
 ASTree Rose::RoseData::getIfState()
 {
 	IfState t= std::make_shared<IfStateC>();
+	t->rose = rose;
 
 	currentLexer->read();
 	getToken("(");
@@ -316,13 +324,11 @@ ASTree Rose::RoseData::getIfState()
 			t->eStates = getState();
 		}
 	}
-
-	t->rose = rose;
 	
 	return t;
 }
 
-ASTree Rose::RoseData::getExpr()
+ASTree Rose::RoseData::getExpr(bool comma)
 {
 	Expr t= std::make_shared<ExprC>();
 	ASTree left=getPrimary();
@@ -337,6 +343,11 @@ ASTree Rose::RoseData::getExpr()
 	{
 		TokenType p = peekNextOperator();
 		auto it = priority.find(p);
+
+		if (comma&&p == Comma)
+		{
+			break;
+		}
 
 		if (it == priority.end())
 		{
@@ -355,6 +366,8 @@ ASTree Rose::RoseData::getExpr()
 Expr Rose::RoseData::doShift(ASTree left, op o)
 {
 	Expr t = std::make_shared<ExprC>();
+
+	t->rose = rose;
 	t->left = left;
 	t->op = binaryCreator.find(getNextOperator())->second();
 	ASTree right = getPrimary();
@@ -375,14 +388,13 @@ Expr Rose::RoseData::doShift(ASTree left, op o)
 		}
 	}
 
-	t->rose = rose;
-
 	return t;
 }
 
 ASTree Rose::RoseData::getWhileState()
 {
 	WhileState t = std::make_shared<WhileStateC>();
+	t->rose = rose;
 
 	currentLexer->read();
 	getToken("(");
@@ -398,14 +410,13 @@ ASTree Rose::RoseData::getWhileState()
 		t->states = getState();
 	}
 
-	t->rose = rose;
-
 	return t;
 }
 
 ASTree Rose::RoseData::getDoWhileState()
 {
 	DoWhileState t = std::make_shared<DoWhileStateC>();
+	t->rose = rose;
 
 	currentLexer->read();
 
@@ -423,8 +434,6 @@ ASTree Rose::RoseData::getDoWhileState()
 	t->condition = getExpr();
 	getToken(")");
 	getToken(";");
-
-	t->rose = rose;
 
 	return t;
 }
@@ -570,6 +579,34 @@ ASTree Rose::RoseData::getState()
 
 ASTree Rose::RoseData::getId()
 {
+	
+
+
+
+}
+
+ASTree Rose::RoseData::getLiteral()
+{
+	return ASTree();
+}
+
+ASTree Rose::RoseData::getFunCall()
+{
+	return ASTree();
+}
+
+ASTree Rose::RoseData::getArrayAccess()
+{
+	return ASTree();
+}
+
+ASTree Rose::RoseData::getArrayDefine()
+{
+	return ASTree();
+}
+
+ASTree Rose::RoseData::getUnary()
+{
 	return ASTree();
 }
 
@@ -653,15 +690,282 @@ Rose::~Rose()
 
 ASTree Rose::RoseData::getPrimary()
 {
+	const Token &token = currentLexer->peek(0);
+	TokenType p = token.getType();
 
+	if (p==LeftSqBracket)
+	{
+		return getArrayDefine();
+	}
 
+	if (p >= PreIncrement&&p <= Negation)
+	{
+		Unary head;
+		Unary tail;
 
+		while (p >= PreIncrement&&p <= Negation)
+		{
+			currentLexer->read();
+			Unary t;
 
+			if (p == PreDecrement)
+			{
+				t = std::make_shared<PreDecrementC>();
+			}
+			else if (p == Positive)
+			{
+				t = std::make_shared<PositiveC>();
+			}
+			else if (p == Negative)
+			{
+				t = std::make_shared<NegativeC>();
+			}
+			else if (p == Negation)
+			{
+				t = std::make_shared<NegationC>();
+			}
 
+			currentLexer->read();
+			t->rose = rose;
 
+			if (head.get() == nullptr)
+			{
+				head = t;
+				tail = t;
+			}
+			else
+			{
+				tail->value = t;
+				tail = t;
+			}
 
+			const Token &token = currentLexer->peek(0);
+			p = token.getType();
+		}
 
-	return ASTree();
+		//todo
+		tail->value = getAtomic();
+		return head;
+	}
+
+	return getAtomic();
+}
+
+ASTree Rose::RoseData::getAtomic()
+{
+	const Token &token = currentLexer->peek(0);
+	TokenType p = token.getType();
+
+	if (p == IntLiteral)
+	{
+		const Token &t = currentLexer->peek(0);
+
+		Literal l = std::make_shared<LiteralC>();
+		l->rose = rose;
+		Integer *inte = new Integer;
+		inte->value = t.getInteger();
+		inte->visited = false;
+		inte->counter = 0;
+		l->value.data = inte;
+		currentLexer->read();
+
+		return l;
+	}
+
+	if (p == RealLiteral)
+	{
+		const Token &t = currentLexer->peek(0);
+
+		Literal l = std::make_shared<LiteralC>();
+		l->rose = rose;
+		Real *real = new Real;
+		real->value = t.getReal();
+		real->visited = false;
+		real->counter = 0;
+		l->value.data = real;
+		currentLexer->read();
+
+		return l;
+	}
+
+	if (p == StringLiteral)
+	{
+		const Token &t = currentLexer->peek(0);
+
+		Literal l = std::make_shared<LiteralC>();
+		l->rose = rose;
+		String *str = new String;
+		str->value = t.getString();
+		str->visited = false;
+		str->counter = 0;
+		l->value.data = str;
+		currentLexer->read();
+
+		return l;
+	}
+
+	ASTree result;
+
+	while (true)
+	{
+		const Token &token = currentLexer->peek(0);
+		TokenType p = token.getType();
+
+		if (token.isKeyword())
+		{
+			if (token.getString() == "rose"&&result.get() == nullptr)
+			{
+				if (currentLexer->peek(1).getType() == Member)
+				{
+					Id id = std::make_shared<IdC>();
+					id->rose = rose;
+					id->name = "rose";
+					id->index = -1;
+					id->level = -1;
+					result = id;
+					currentLexer->read();
+				}
+				else
+				{
+					addError(token.getLine(), "不能使用关键字作为标识符");
+				}
+			}
+			else
+			{
+				addError(token.getLine(), "不能使用关键字作为标识符");
+			}
+			continue;
+		}
+
+		if (p == Identifier)
+		{
+			if (result.get() == nullptr)
+			{
+				Id id = std::make_shared<IdC>();
+				id->rose = rose;
+				id->name = token.getString();
+
+				int index = -1;
+				int counter = 0;
+
+				for (int i = currentLevel; i >= 0; --i)
+				{
+					auto it = vName[i].find(id->name);
+					if (it != vName[i].end())
+					{
+						index = it->second;
+						break;
+					}
+					++counter;
+				}
+
+				if (index == -1)
+				{
+					if (currentLexer->peek(1).getType() != LeftBracket)
+					{
+						addError(token.getLine(), "使用了未定义的标识符");
+					}
+				}
+
+				id->index = index;
+				id->level = counter;
+				result = id;
+
+				currentLexer->read();
+			}
+			else
+			{
+				addError(token.getLine(), "应该输入;");
+			}
+
+			continue;
+		}
+
+		if (p == Member)
+		{
+			if (result.get() == nullptr)
+			{
+				addError(token.getLine(), "应输入标识符");
+			}
+			else
+			{
+				currentLexer->read();
+
+				auto &next = currentLexer->peek(0);
+				if (next.getType() != Identifier || next.isKeyword())
+				{
+					addError(token.getLine(), "应输入正确的成员");
+				}
+
+				MemAccess mem = std::make_shared<MemAccessC>();
+				mem->rose = rose;
+				mem->obj = result;
+				mem->name = next.getString();
+
+				result = mem;
+			}
+
+			continue;
+		}
+
+		if (p == LeftBracket)
+		{
+			if (result.get() == nullptr)
+			{
+				addError(token.getLine(), "应输入标识符");
+			}
+			else
+			{
+				FunCall fun = std::make_shared<FunCallC>();
+				fun->rose = rose;
+				fun->function = result;
+
+				getToken("(");
+
+				while (currentLexer->peek(0).getType() != RightBracket)
+				{
+					fun->parameters.push_back(getExpr(true));
+					auto type = currentLexer->peek(0).getType();
+					if (p == Comma)
+					{
+						currentLexer->read();
+					}
+					else if (p == RightBracket)
+					{
+						continue;
+					}
+
+					addError(currentLexer->peek(0).getLine(), "应该输入,");
+				}
+
+				getToken(")");
+
+				result = fun;
+			}
+		}
+
+		if (p == LeftSqBracket)
+		{
+			if (result.get() == nullptr)
+			{
+				addError(token.getLine(), "应输入标识符");
+			}
+			else
+			{
+				ArrayAccess arr = std::make_shared<ArrayAccessC>();
+				arr->rose = rose;
+				arr->array = result;
+
+				getToken("[");
+				arr->index = getExpr();
+				getToken("]");
+				result = arr;
+			}
+		}
+
+	}
+
+	addError(token.getLine(), "应输入表达式");
 }
 
 void Rose::RoseData::getGlobalDefination(std::vector<std::string> &names,int start)

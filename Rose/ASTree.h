@@ -34,6 +34,20 @@ public:
 	long long value;
 };
 
+class Real :public Data
+{
+public:
+	virtual DataType getType()override;
+	double value;
+};
+
+class String :public Data
+{
+public:
+	virtual DataType getType()override;
+	std::string value;
+};
+
 class Variable
 {
 public:
@@ -103,7 +117,8 @@ using VDefination = std::shared_ptr < VDefinationC >;
 */
 class UnaryC :public ASTreeC
 {
-
+public:
+	ASTree value;
 };
 
 /*前置自增运算符*/
@@ -111,8 +126,6 @@ class PreIncrementC :public UnaryC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
-	ASTree value;
 };
 
 /*前置自减运算符*/
@@ -120,8 +133,6 @@ class PreDecrementC :public UnaryC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
-	ASTree value;
 };
 
 /*正号*/
@@ -129,8 +140,6 @@ class PositiveC :public UnaryC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
-	ASTree value;
 };
 
 /*负号*/
@@ -138,8 +147,6 @@ class NegativeC :public UnaryC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
-	ASTree value;
 };
 
 /*逻辑非*/
@@ -147,8 +154,6 @@ class NegationC :public UnaryC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
-	ASTree value;
 };
 
 /*后置自增运算符*/
@@ -156,7 +161,6 @@ class PostIncrementC :public UnaryC
 {
 public:
 	virtual Variable evaluation()override;
-	ASTree value;
 };
 
 /*后置自减运算符*/
@@ -164,8 +168,6 @@ class PostDecrementC :public UnaryC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
-	ASTree value;
 };
 
 using Unary = std::shared_ptr < UnaryC >;
@@ -178,7 +180,6 @@ class PrimaryC :public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
 	ASTree value;
 };
 
@@ -492,7 +493,6 @@ class ArrayAccessC :public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
 	ASTree array;
 	Expr index;
 };
@@ -507,28 +507,25 @@ class FunCallC :public ASTreeC
 {
 public:
 	virtual Variable evaluation()override;
-protected:
-	Primary function;
-	ASTree parameters;
-};
-
-/*
-成员函数调用，首先根据Id计算出类名，
-然后将类名加上函数名，得到映射表中的函数名
-最后计算出参数列表，然后调用函数
-
-*/
-class MemFunCall :public ASTreeC
-{
-public:
-	virtual Variable evaluation()override;
-protected:
-	std::string name;
-	Id obj;
-	ASTree parameters;
+	ASTree function;
+	std::vector<ASTree> parameters;
 };
 
 using FunCall = std::shared_ptr < FunCallC >;
+
+/*
+成员变量访问
+*/
+
+class MemAccessC :public ASTreeC
+{
+public:
+	virtual Variable evaluation()override;
+	std::string name;
+	ASTree obj;
+};
+
+using MemAccess = std::shared_ptr < MemAccessC >;
 
 /*
 真正的函数，含有一个语句块，执行一次该语句块
