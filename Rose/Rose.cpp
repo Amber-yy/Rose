@@ -49,9 +49,12 @@ struct Rose::RoseData
 	ASTree getDoWhileState();
 	ASTree getForState();
 	ASTree getReturnState();
+	ASTree getBreakState();
+	ASTree getContinueState();
 	ASTree getExprState();
 	ASTree getExpr(bool comma=false);
-	ASTree getFunDefination();
+	FunDefination getFunDefination();
+	ASTree getClassDefination();
 	TokenType peekNextOperator();
 	TokenType getNextOperator();
 	Expr doShift(ASTree left, op o);
@@ -65,13 +68,21 @@ struct Rose::RoseData
 	std::vector<std::map<std::string, int>> vName;//分析时符号表
 	std::map<std::string, int> globals;//全局符号表
 	std::map<std::string, int> functionName;//从函数名到实际函数的映射
-	std::vector<ASTree> functions;//实际的函数
+	std::vector<FunDefination> functions;//实际的函数
+	std::vector<FunDefination> tempFunctions;//实际的函数
 	std::map<TokenType, std::function<Binary()>> binaryCreator;
 	std::map<TokenType,op> priority;
 	std::vector<Iterator> globalVariablesIndex;
 	std::list<Variable> variables;
 	int currentLevel;
+	int variableNum;
 };
+
+/*
+增加一个临时的函数表，一个临时的类表
+分析结束后将函数表中的所有成员添加到全局符号表和函数表
+临时类表在分析结束后，将其中的成员加入类表和全局符号表
+*/
 
 void Rose::addError(int line, const std::string &info)
 {
@@ -118,17 +129,20 @@ void Rose::doString(std::string & code)
 
 		//然后处理函数定义和类定义
 
+		data->variableNum = data->vName[0].size()+ data->globals.size();
+
 		while (data->currentLexer->hasMore())
 		{
 			const Token &t = data->currentLexer->peek(0);
 
 			if (t.getString() == "function")
 			{
-				data->getFunDefination();
+				FunDefination fun=data->getFunDefination();
+				data->tempFunctions.push_back(fun);
 			}
 			else if (t.getString() == "class")
 			{
-
+				data->getClassDefination();
 			}
 			else
 			{
@@ -144,6 +158,21 @@ void Rose::doString(std::string & code)
 			data->globalVariablesIndex.push_back(std::move(--data->variables.end()));//全局变量，编号与实际迭代器互转
 		}
 
+		//为函数创建空间
+		for (int i = 0; i < data->tempFunctions.size(); ++i, ++start)
+		{
+			data->globals.insert(std::pair<std::string, int>(data->tempFunctions[i]->name, start));//全局区添加一个函数
+			Variable t;
+			Callable *c= new Callable;
+			c->value = data->tempFunctions[i]->name;
+			c->index = data->functions.size();
+			t.data = c;
+			data->variables.push_back(t);//为函数创建一个变量
+			data->functionName.insert(std::pair<std::string, int>(data->tempFunctions[i]->name, data->functions.size()));//通过函数名来访问函数
+			data->functions.push_back(data->tempFunctions[i]);//实际的函数
+		}
+
+		data->tempFunctions.clear();
 		data->vName.clear();
 	}
 	catch (ParseExcepetion &p)
@@ -153,7 +182,7 @@ void Rose::doString(std::string & code)
 	}
 }
 
-ASTree Rose::RoseData::getFunDefination()
+FunDefination Rose::RoseData::getFunDefination()
 {
 	currentLexer->read();
 	const Token &t= currentLexer->read();
@@ -173,6 +202,8 @@ ASTree Rose::RoseData::getFunDefination()
 		addError(t.getLine(), "全局标识符重定义");
 	}
 
+	vName[0].insert(std::pair<std::string, int>(t.getString(), vName[0].size()));
+
 	getToken("(");
 	getToken(")");
 
@@ -182,6 +213,29 @@ ASTree Rose::RoseData::getFunDefination()
 	fun->block=getBlock();
 
 	return fun;
+}
+
+ASTree Rose::RoseData::getClassDefination()
+{
+	currentLexer->read();
+	const Token &t = currentLexer->read();
+
+	if (t.getType() != Identifier)
+	{
+		addError(t.getLine(), "应输入类名");
+	}
+
+	if (t.isKeyword())
+	{
+		addError(t.getLine(), "不能使用关键字作为类名");
+	}
+
+	if (globals.find(t.getString()) != globals.end() || vName[0].find(t.getString()) != vName[0].end())
+	{
+		addError(t.getLine(), "全局标识符重定义");
+	}
+
+	return ASTree();
 }
 
 TokenType Rose::RoseData::peekNextOperator()
@@ -523,6 +577,20 @@ ASTree Rose::RoseData::getReturnState()
 	return t;
 }
 
+ASTree Rose::RoseData::getBreakState()
+{
+	getToken("break");
+	getToken(";");
+	return std::make_shared<BreakStateC>();
+}
+
+ASTree Rose::RoseData::getContinueState()
+{
+	getToken("continue");
+	getToken(";");
+	return std::make_shared<ContinueStateC>();
+}
+
 ASTree Rose::RoseData::getExprState()
 {
 	if (currentLexer->peek(0).getType()==EndOfLine)
@@ -569,6 +637,15 @@ ASTree Rose::RoseData::getState()
 	{
 		return getReturnState();
 	}
+	if (t.getString() == "continue")
+	{
+		return getContinueState();
+	}
+	if (t.getString() == "break")
+	{
+		return getBreakState();
+	}
+
 	if (isVDefination())
 	{
 		return getVDefination();
@@ -698,6 +775,14 @@ ASTree Rose::RoseData::getPrimary()
 		return getArrayDefine();
 	}
 
+	if (p == LeftBracket)
+	{
+		getToken("(");
+		ASTree expr = getExpr();
+		getToken(")");
+		return expr;
+	}
+
 	if (p >= PreIncrement&&p <= Negation)
 	{
 		Unary head;
@@ -743,7 +828,6 @@ ASTree Rose::RoseData::getPrimary()
 			p = token.getType();
 		}
 
-		//todo
 		tail->value = getAtomic();
 		return head;
 	}
@@ -764,8 +848,6 @@ ASTree Rose::RoseData::getAtomic()
 		l->rose = rose;
 		Integer *inte = new Integer;
 		inte->value = t.getInteger();
-		inte->visited = false;
-		inte->counter = 0;
 		l->value.data = inte;
 		currentLexer->read();
 
@@ -780,8 +862,6 @@ ASTree Rose::RoseData::getAtomic()
 		l->rose = rose;
 		Real *real = new Real;
 		real->value = t.getReal();
-		real->visited = false;
-		real->counter = 0;
 		l->value.data = real;
 		currentLexer->read();
 
@@ -796,8 +876,6 @@ ASTree Rose::RoseData::getAtomic()
 		l->rose = rose;
 		String *str = new String;
 		str->value = t.getString();
-		str->visited = false;
-		str->counter = 0;
 		l->value.data = str;
 		currentLexer->read();
 
@@ -820,6 +898,23 @@ ASTree Rose::RoseData::getAtomic()
 					Id id = std::make_shared<IdC>();
 					id->rose = rose;
 					id->name = "rose";
+					id->index = -1;
+					id->level = -1;
+					result = id;
+					currentLexer->read();
+				}
+				else
+				{
+					addError(token.getLine(), "不能使用关键字作为标识符");
+				}
+			}
+			else if (token.getString() == "args"&&result.get() == nullptr)
+			{
+				if (currentLexer->peek(1).getType() == LeftSqBracket)
+				{
+					Id id = std::make_shared<IdC>();
+					id->rose = rose;
+					id->name = "args";
 					id->index = -1;
 					id->level = -1;
 					result = id;
@@ -919,6 +1014,22 @@ ASTree Rose::RoseData::getAtomic()
 				FunCall fun = std::make_shared<FunCallC>();
 				fun->rose = rose;
 				fun->function = result;
+
+				//if (dynamic_cast<IdC *>(result.get()))
+				//{
+				//	IdC *id = dynamic_cast<IdC *>(result.get());
+				//	auto it = vName[0].find(id->name);
+				//	if (it != vName[0].end() && it->second >= variableNum)
+				//	{
+				//		Literal l = std::make_shared<LiteralC>();/*如果调用的是本文件的函数*/
+				//		l->rose = rose;
+				//		Callable *call = new Callable;
+				//		call->value = id->name;
+				//		call->index = it->second;
+				//		l->value.data = call;
+				//		result = l;
+				//	}
+				//}
 
 				getToken("(");
 

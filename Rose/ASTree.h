@@ -13,6 +13,7 @@ enum DataType
 	ARRAY,
 	MAP,
 	OBJECT,
+	CALLABLE,
 	USERDATA
 };
 
@@ -21,6 +22,7 @@ class Rose;
 class Data
 {
 public:
+	Data():visited(false),counter(0){}
 	virtual DataType getType() = 0;
 	virtual ~Data(){}
 	bool visited;
@@ -46,6 +48,14 @@ class String :public Data
 public:
 	virtual DataType getType()override;
 	std::string value;
+};
+
+class Callable :public Data
+{
+public:
+	virtual DataType getType()override;
+	std::string value;
+	int index;
 };
 
 class Variable
@@ -551,3 +561,17 @@ protected:
 	std::vector<Expr> exprs;
 };
 
+class BreakStateC :public ASTreeC
+{
+public:
+	virtual Variable evaluation()override;
+};
+
+class ContinueStateC :public ASTreeC
+{
+public:
+	virtual Variable evaluation()override;
+};
+
+using BreakState = std::shared_ptr<BreakStateC>();
+using ContinueState = std::shared_ptr<ContinueStateC>();

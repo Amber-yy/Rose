@@ -273,3 +273,18 @@ DataType String::getType()
 {
 	return STRING;
 }
+
+DataType Callable::getType()
+{
+	return CALLABLE;
+}
+
+Variable BreakStateC::evaluation()
+{
+	return Variable();
+}
+
+Variable ContinueStateC::evaluation()
+{
+	return Variable();
+}
